@@ -2,7 +2,7 @@ name: Market Alert Daily Cron
 
 on:
   schedule:
-    - cron: "42 10 * * *"   
+    - cron: "50 10 * * *"   
   workflow_dispatch:       
 
 jobs:
