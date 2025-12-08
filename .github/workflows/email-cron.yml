@@ -2,7 +2,7 @@ name: Market Alert Daily Cron
 
 on:
   schedule:
-    - cron: "35 17 * * *"   # 11:05 PM IST (17:35 UTC)
+    - cron: "0 16 * * *"   # 11:05 PM IST (17:35 UTC)
   workflow_dispatch:       # Allows manual run
 
 jobs:
