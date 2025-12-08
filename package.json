@@ -1,0 +1,20 @@
+{
+  "name": "strategy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "start": "node marketAlert.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^7.0.11",
+    "yahoo-finance2": "^3.10.2"
+  }
+}
