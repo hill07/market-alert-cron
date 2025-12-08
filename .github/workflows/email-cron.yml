@@ -2,7 +2,7 @@ name: Market Alert Daily Cron
 
 on:
   schedule:
-    - cron: "0 16 * * *"   4 IST
+    - cron: "37 10 * * *"   #4 IST
   workflow_dispatch:       # Allows manual run
 
 jobs:
