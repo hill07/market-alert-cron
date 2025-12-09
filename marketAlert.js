@@ -142,7 +142,7 @@ async function main() {
     funds.sort((a, b) => {
       const A = a.changePercent ?? 0;
       const B = b.changePercent ?? 0;
-      return B - A;
+      return A - B;
     });
 
     html += `
