@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-const THRESHOLD = 00; // Only negative movement applies
+const THRESHOLD = 0.0; // Only negative movement applies
 
 // Scheme Codes
 const nifty50SchemeCodes = [
