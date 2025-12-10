@@ -99,8 +99,8 @@ async function main() {
     checkIndex("Nifty Next 50", "^NSMIDCP"),
   ]);
 
-  const nifty50Triggered = nifty50.change <= THRESHOLD;
-  const niftyNext50Triggered = niftyNext50.change <= THRESHOLD;
+  const nifty50Triggered = nifty50.change <= -THRESHOLD;
+  const niftyNext50Triggered = niftyNext50.change <= -THRESHOLD;
 
   let include50Funds = false;
   let includeNextFunds = false;
