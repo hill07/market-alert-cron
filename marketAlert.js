@@ -1,9 +1,11 @@
 import yahooFinance from "yahoo-finance2";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import fetch from 'node-fetch'; // Make sure to install node-fetch if not already
+
 dotenv.config();
 
-const THRESHOLD = 0.0; // Only negative movement applies
+const THRESHOLD = 0; // Threshold for triggering fund alerts
 
 // Scheme Codes
 const nifty50SchemeCodes = [
@@ -61,7 +63,8 @@ async function fetchFundDetails(code) {
       changePercent,
       category,
     };
-  } catch {
+  } catch (error) {
+    console.error(`Error fetching fund ${code}:`, error);
     return null;
   }
 }
@@ -74,9 +77,11 @@ function formatINR(val) {
 async function checkIndex(label, ticker) {
   const yt = new yahooFinance();
   const data = await yt.quote(ticker);
+  const changePercent = data.regularMarketChangePercent;
+  console.log(`${label} change: ${changePercent.toFixed(2)}%`); // Log the movement
   return {
     label,
-    change: Number(data.regularMarketChangePercent),
+    change: Number(changePercent),
   };
 }
 
@@ -94,11 +99,17 @@ async function sendMail(subject, html) {
 async function main() {
   console.log("📊 Checking Nifty indices...");
 
+  // Fetch index movements
   const [nifty50, niftyNext50] = await Promise.all([
     checkIndex("Nifty 50", "^NSEI"),
     checkIndex("Nifty Next 50", "^NSMIDCP"),
   ]);
 
+  // Log index movements
+  console.log(`Nifty 50 movement: ${nifty50.change.toFixed(2)}%`);
+  console.log(`Nifty Next 50 movement: ${niftyNext50.change.toFixed(2)}%`);
+
+  // Determine if movement crosses threshold
   const nifty50Triggered = nifty50.change <= THRESHOLD;
   const niftyNext50Triggered = niftyNext50.change <= THRESHOLD;
 
@@ -114,6 +125,7 @@ async function main() {
     includeNextFunds = true;
   }
 
+  // Prepare email HTML
   let html = `
   <div style="font-family:Arial;padding:12px;">
   <h2 style="text-align:center;color:#d32f2f;">📉 Market Update</h2>
@@ -135,10 +147,11 @@ async function main() {
     </tbody>
   </table>`;
 
+  // Function to load fund data
   async function loadFunds(codes, title) {
     const funds = (await Promise.all(codes.map(fetchFundDetails))).filter(Boolean);
 
-    // Sorting: biggest dip first
+    // Sort by dip (biggest negative change first)
     funds.sort((a, b) => {
       const A = a.changePercent ?? 0;
       const B = b.changePercent ?? 0;
