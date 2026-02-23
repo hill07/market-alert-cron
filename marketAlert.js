@@ -10,6 +10,27 @@ import dotenv from "dotenv";
 dotenv.config();
 
 /* =======================
+   ENV VALIDATION
+======================= */
+
+function requireEnv(name) {
+  if (!process.env[name]) {
+    throw new Error(`❌ Missing required environment variable: ${name}`);
+  }
+}
+
+try {
+  requireEnv("EMAIL_USER");
+  requireEnv("EMAIL_PASS");
+  requireEnv("EMAIL_TO");
+
+  console.log("✅ Environment variables loaded successfully");
+} catch (err) {
+  console.error(err.message);
+  process.exit(1); // HARD FAIL (important for GitHub cron)
+}
+
+/* =======================
    CONFIG
 ======================= */
 
@@ -34,28 +55,45 @@ const niftyNext50SchemeCodes = [
 ======================= */
 
 async function fetchNSEIndex(indexName) {
-  const url = `https://www.nseindia.com/api/equity-stockIndices?index=${encodeURIComponent(indexName)}`;
+  try {
+    const url = `https://www.nseindia.com/api/equity-stockIndices?index=${encodeURIComponent(indexName)}`;
 
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      "Accept": "application/json",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Referer": "https://www.nseindia.com/",
-      "Connection": "keep-alive"
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Accept": "application/json",
+        "Referer": "https://www.nseindia.com/"
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`NSE API failed (${res.status})`);
     }
-  });
 
-  const json = await res.json();
-  const data = json.data?.[0];
+    const json = await res.json();
+    const data = json?.data?.[0];
 
-  return {
-    name: json.name,
-    lastPrice: data.lastPrice,
-    pChange: data.pChange,
-    timestamp: json.timestamp
-  };
+    if (!data) {
+      throw new Error("NSE response missing data");
+    }
+
+    return {
+      name: json.name,
+      lastPrice: data.lastPrice,
+      pChange: data.pChange,
+      timestamp: json.timestamp
+    };
+  } catch (err) {
+    console.error(`⚠️ NSE fetch failed for ${indexName}:`, err.message);
+
+    return {
+      name: indexName,
+      lastPrice: "—",
+      pChange: 0,
+      timestamp: "N/A"
+    };
+  }
 }
 
 /* =======================
@@ -65,26 +103,34 @@ async function fetchNSEIndex(indexName) {
 async function fetchFundDetails(code) {
   try {
     const res = await fetch(`https://api.mfapi.in/mf/${code}`);
+
+    if (!res.ok) {
+      throw new Error(`MF API error (${res.status})`);
+    }
+
     const data = await res.json();
 
-    const latest = data?.data?.[0];
-    const prev = data?.data?.[1];
+    if (!data?.data?.length) {
+      throw new Error("No NAV data found");
+    }
 
-    const nav = latest ? Number(latest.nav) : null;
+    const latest = data.data[0];
+    const prev = data.data[1];
+
+    const nav = Number(latest.nav);
     const prevNav = prev ? Number(prev.nav) : null;
 
-    const changePercent =
-      nav && prevNav ? ((nav - prevNav) / prevNav) * 100 : null;
-
     return {
-      name: data?.meta?.scheme_name,
+      name: data.meta.scheme_name,
       nav,
-      navDate: latest?.date,
+      navDate: latest.date,
       previousNav: prevNav,
       previousDate: prev?.date,
-      changePercent
+      changePercent:
+        nav && prevNav ? ((nav - prevNav) / prevNav) * 100 : null
     };
-  } catch {
+  } catch (err) {
+    console.error(`⚠️ MF fetch failed for scheme ${code}:`, err.message);
     return null;
   }
 }
@@ -102,16 +148,28 @@ const transporter = nodemailer.createTransport({
 });
 
 async function sendMail(subject, html) {
-  await transporter.verify();
+  try {
+    console.log("🔐 Verifying SMTP credentials...");
+    await transporter.verify();
+    console.log("✅ SMTP verified");
 
-  await transporter.sendMail({
-    from: `"Market Alert" <${process.env.EMAIL_USER}>`,
-    to: process.env.EMAIL_TO,
-    subject,
-    html
-  });
+    console.log("📤 Sending email...");
+    const info = await transporter.sendMail({
+      from: `"Market Alert" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_TO,
+      subject,
+      html
+    });
 
-  console.log("📩 Email sent");
+    console.log("📩 Email sent successfully:", info.messageId);
+  } catch (err) {
+    console.error("❌ EMAIL ERROR");
+    console.error("Code:", err.code);
+    console.error("Response:", err.response);
+    console.error("Message:", err.message);
+
+    throw new Error("Email sending failed");
+  }
 }
 
 /* =======================
@@ -129,9 +187,8 @@ function formatINR(val) {
 ======================= */
 
 async function main() {
-  console.log("📊 Fetching data...");
+  console.log("📊 Fetching market data...");
 
-  // Fetch indices (informational only)
   const nifty50 = await fetchNSEIndex("NIFTY 50");
   const niftyNext50 = await fetchNSEIndex("NIFTY NEXT 50");
 
@@ -194,7 +251,6 @@ async function main() {
     </table>`;
   }
 
-  // ALWAYS load MF data
   await loadFunds(nifty50SchemeCodes, "NIFTY 50 MUTUAL FUNDS");
   await loadFunds(niftyNext50SchemeCodes, "NIFTY NEXT 50 MUTUAL FUNDS");
 
@@ -211,6 +267,13 @@ async function main() {
    RUN
 ======================= */
 
-main().catch(err => {
-  console.error("❌ Error:", err.message);
-});
+(async () => {
+  try {
+    await main();
+    console.log("✅ Job completed successfully");
+  } catch (err) {
+    console.error("❌ JOB FAILED");
+    console.error(err.message);
+    process.exit(1);
+  }
+})();
