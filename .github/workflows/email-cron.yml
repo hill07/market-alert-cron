@@ -2,7 +2,7 @@ name: Market Alert Daily Cron
 
 on:
   schedule:
-    - cron: "0 3 * * *"     # 08:30 IST -> 03:00 UTC
+    - cron: "30 2 * * *"
   workflow_dispatch:       
 
 jobs:
